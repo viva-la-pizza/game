@@ -195,13 +195,20 @@
   </style>
 </head>
 
+
 <body>
 
 <header>
   <h1>🍕 Viva la Pizza!</h1>
-  <h2> Trova le 5 pizze buone senza cliccare quelle bruciate!</h2>
+  <h2>Trova tutte le pizze buone senza cliccare quelle bruciate</h2>
 </header>
 
+<!-- HUD INVISIBILE (per evitare crash JS) -->
+<div style="opacity:0; pointer-events:none; height:0;">
+  <span id="good"></span>
+  <span id="burnt"></span>
+  <span id="left"></span>
+</div>
 
 <div class="pizza-grid" id="grid"></div>
 
@@ -222,9 +229,9 @@
 </div>
 
 <script>
-const TOTAL = 8;
-const GOOD = 5;
-const BURNT = 3;
+const TOTAL = 3;
+const GOOD = 2;
+const BURNT = 1;
 
 let grid = [];
 let good = 0;
@@ -232,17 +239,17 @@ let burnt = 0;
 let active = true;
 
 function shuffle(a){
-  for(let i=a.length-1;i>0;i--){
-    let j=Math.floor(Math.random()*(i+1));
-    [a[i],a[j]]=[a[j],a[i]];
+  for(let i = a.length - 1; i > 0; i--){
+    let j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
 }
 
 function start(){
-  good=0;
-  burnt=0;
-  active=true;
+  good = 0;
+  burnt = 0;
+  active = true;
 
   grid = shuffle([
     ...Array(GOOD).fill("good"),
@@ -257,14 +264,15 @@ function start(){
 }
 
 function render(){
-  const g=document.getElementById("grid");
-  g.innerHTML="";
+  const g = document.getElementById("grid");
+  g.innerHTML = "";
 
   grid.forEach((t)=>{
-    const el=document.createElement("div");
-    el.className="pizza-slot";
+    const el = document.createElement("div");
+    el.className = "pizza-slot";
+    el.dataset.open = "0";
 
-    el.innerHTML=`
+    el.innerHTML = `
       <div class="pizza-inner">
         <div class="pizza-face front">
           <img src="images/unk.png">
@@ -273,48 +281,58 @@ function render(){
           <img src="images/${t}.png">
         </div>
       </div>
-      <div class="result-badge">${t==="good"?"✓":"✕"}</div>
+      <div class="result-badge">${t === "good" ? "✓" : "✕"}</div>
     `;
 
-    el.onclick=()=>click(el,t);
+    el.onclick = () => click(el, t);
     g.appendChild(el);
   });
 }
 
-function click(el,type){
-  if(!active || el.classList.contains("revealed")) return;
+function click(el, type){
+  if(!active || el.dataset.open === "1") return;
 
-  el.classList.add("revealed","flipping");
+  el.dataset.open = "1";
+  el.classList.add("flipping");
 
   setTimeout(()=>{
-    if(type==="good"){
+    if(type === "good"){
       good++;
       el.classList.add("good-reveal");
-      update();
-
-      if(good===GOOD){
-        active=false;
-        document.getElementById("win").classList.add("show");
-      }
-
     } else {
       burnt++;
       el.classList.add("burnt-reveal");
-      active=false;
-
-      setTimeout(()=>{
-        document.getElementById("lose").classList.add("show");
-      },500);
     }
 
     update();
-  },300);
+    checkEnd();
+
+  }, 300);
+}
+
+function checkEnd(){
+  if(!active) return;
+
+  if(burnt > 0){
+    active = false;
+    document.getElementById("lose").classList.add("show");
+    return;
+  }
+
+  if(good === GOOD){
+    active = false;
+    document.getElementById("win").classList.add("show");
+  }
 }
 
 function update(){
-  document.getElementById("good").textContent=good;
-  document.getElementById("burnt").textContent=burnt;
-  document.getElementById("left").textContent=TOTAL-good-burnt;
+  const g = document.getElementById("good");
+  const b = document.getElementById("burnt");
+  const l = document.getElementById("left");
+
+  if(g) g.textContent = good;
+  if(b) b.textContent = burnt;
+  if(l) l.textContent = TOTAL - good - burnt;
 }
 
 start();
