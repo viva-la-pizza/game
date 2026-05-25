@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🍕 Pizza Hunt</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #1a0a00;
+      --panel: #2d1200;
+      --accent: #ff6b00;
+      --accent2: #ffd166;
+      --good: #06d6a0;
+      --bad: #ef233c;
+      --text: #fff8f0;
+      --shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      font-family: 'Nunito', sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+    }
+
+    header {
+      text-align: center;
+      padding: 2rem 1rem 1rem;
+    }
+
+    h1 {
+      font-family: 'Fredoka One', cursive;
+      color: var(--accent2);
+      font-size: 3rem;
+    }
+
+    .hud {
+      display: flex;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+
+    .hud-card {
+      background: var(--panel);
+      padding: 0.6rem 1.2rem;
+      border-radius: 12px;
+      text-align: center;
+      min-width: 90px;
+    }
+
+    .hud-value {
+      font-size: 1.6rem;
+      font-weight: bold;
+    }
+
+    .hud-value.green { color: var(--good); }
+    .hud-value.red { color: var(--bad); }
+    .hud-value.gold { color: var(--accent2); }
+
+    /* GRID */
+    .pizza-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      width: 100%;
+      max-width: 1000px;
+      padding: 1rem;
+    }
+
+    /* 🔴 FIX CRITICO: perspective */
+    .pizza-slot {
+      position: relative;
+      aspect-ratio: 1;
+      cursor: pointer;
+      perspective: 1000px;
+    }
+
+    /* INNER */
+    .pizza-inner {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.55s ease;
+      will-change: transform;
+    }
+
+    .pizza-slot.flipping .pizza-inner {
+      transform: rotateY(180deg);
+    }
+
+    /* FACES */
+    .pizza-face {
+      position: absolute;
+      inset: 0;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      transform: translateZ(0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .pizza-face img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .pizza-face.front {
+      z-index: 2;
+    }
+
+    .pizza-face.back {
+      transform: rotateY(180deg);
+      z-index: 1;
+    }
+
+    .pizza-slot.revealed {
+      pointer-events: none;
+    }
+
+    /* RESULT */
+    .result-badge {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      opacity: 0;
+      transform: scale(0);
+      transition: 0.3s;
+    }
+
+    .pizza-slot.good-reveal .result-badge {
+      background: var(--good);
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .pizza-slot.burnt-reveal .result-badge {
+      background: var(--bad);
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* OVERLAY */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .overlay.show {
+      display: flex;
+    }
+
+    .overlay-box {
+      background: var(--panel);
+      padding: 2rem;
+      border-radius: 16px;
+      text-align: center;
+      font-size: 50px;
+    }
+
+    button {
+      margin-top: 1rem;
+      padding: 0.7rem 1.6rem;
+      border: none;
+      border-radius: 30px;
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>🍕 Viva la Pizza!</h1>
+  <h2> Trova le 5 pizze buone senza cliccare quelle bruciate!</h2>
+</header>
+
+
+<div class="pizza-grid" id="grid"></div>
+
+<div class="overlay" id="win">
+  <div class="overlay-box">
+    🎉 Hai vinto!
+    <br>
+    <button onclick="start()">Restart</button>
+  </div>
+</div>
+
+<div class="overlay" id="lose">
+  <div class="overlay-box">
+    🔥 Hai perso!
+    <br>
+    <button onclick="start()">Retry</button>
+  </div>
+</div>
+
+<script>
+const TOTAL = 8;
+const GOOD = 5;
+const BURNT = 3;
+
+let grid = [];
+let good = 0;
+let burnt = 0;
+let active = true;
+
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){
+    let j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+function start(){
+  good=0;
+  burnt=0;
+  active=true;
+
+  grid = shuffle([
+    ...Array(GOOD).fill("good"),
+    ...Array(BURNT).fill("burnt")
+  ]);
+
+  document.getElementById("win").classList.remove("show");
+  document.getElementById("lose").classList.remove("show");
+
+  render();
+  update();
+}
+
+function render(){
+  const g=document.getElementById("grid");
+  g.innerHTML="";
+
+  grid.forEach((t)=>{
+    const el=document.createElement("div");
+    el.className="pizza-slot";
+
+    el.innerHTML=`
+      <div class="pizza-inner">
+        <div class="pizza-face front">
+          <img src="images/unk.png">
+        </div>
+        <div class="pizza-face back">
+          <img src="images/${t}.png">
+        </div>
+      </div>
+      <div class="result-badge">${t==="good"?"✓":"✕"}</div>
+    `;
+
+    el.onclick=()=>click(el,t);
+    g.appendChild(el);
+  });
+}
+
+function click(el,type){
+  if(!active || el.classList.contains("revealed")) return;
+
+  el.classList.add("revealed","flipping");
+
+  setTimeout(()=>{
+    if(type==="good"){
+      good++;
+      el.classList.add("good-reveal");
+      update();
+
+      if(good===GOOD){
+        active=false;
+        document.getElementById("win").classList.add("show");
+      }
+
+    } else {
+      burnt++;
+      el.classList.add("burnt-reveal");
+      active=false;
+
+      setTimeout(()=>{
+        document.getElementById("lose").classList.add("show");
+      },500);
+    }
+
+    update();
+  },300);
+}
+
+function update(){
+  document.getElementById("good").textContent=good;
+  document.getElementById("burnt").textContent=burnt;
+  document.getElementById("left").textContent=TOTAL-good-burnt;
+}
+
+start();
+</script>
+
+</body>
+</html>
